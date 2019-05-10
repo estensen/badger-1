@@ -1736,3 +1736,27 @@ func TestMain(m *testing.M) {
 	}()
 	os.Exit(m.Run())
 }
+
+func TestDBStartup(t *testing.T) {
+	// dir, err := ioutil.TempDir(".", "badger")
+	// require.NoError(t, err, "cannot create badger dir")
+	// defer os.RemoveAll(dir)
+
+	// opt := getTestOptions(dir)
+
+	dir := "/home/ibrahim/m2_drive/100m"
+	opt := DefaultOptions
+	opt.Dir = dir
+	opt.ValueDir = dir
+	db, err := Open(opt)
+	require.NoError(t, err)
+	// tid := db.lc.levels[1].tables[0].ID()
+	// entry := db.manifest.manifest.Tables[tid]
+	// entry.Checksum = []byte("error")
+	// db.manifest.manifest.Tables[tid] = entry
+	start := time.Now()
+	require.NoError(t, db.VerifyChecksum())
+	fmt.Println("with 20 go routines took", time.Since(start))
+	require.NoError(t, err, "unable to open DB")
+	require.NoError(t, db.Close())
+}

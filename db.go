@@ -21,6 +21,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"expvar"
+	"fmt"
 	"io"
 	"math"
 	"os"
@@ -1372,4 +1373,33 @@ func (db *DB) DropPrefix(prefix []byte) error {
 	}
 	db.opt.Infof("DropPrefix done")
 	return nil
+}
+
+// VerifyChecksum validates the checksum for all the SS-tables.
+func (db *DB) VerifyChecksum() error {
+	manifest := db.manifest.manifest
+	throttle := y.NewThrottle(20)
+
+	for _, l := range db.lc.levels {
+		var rerr error
+		for _, t := range l.tables {
+			if err := throttle.Do(); err != nil {
+				return err
+			}
+			go func(t *table.Table) {
+				t.Lock()
+				defer t.Unlock()
+				table, ok := manifest.Tables[t.ID()]
+				if !ok {
+					fmt.Println(errors.Errorf("Table with ID %d not found in manifest file. Skipping", t.ID()))
+					return
+				}
+				if err := t.VerifyChecksum(table.Checksum); err != nil {
+					rerr = y.Wrapf(err, "failed to verify checksum for file %s", t.Filename())
+				}
+				throttle.Done(rerr)
+			}(t)
+		}
+	}
+	return throttle.Finish()
 }
